@@ -21,8 +21,8 @@
 2. 进入 `Workers & Pages` 页面
 3. 点击 `Create application`
 4. 选择 `Create Worker`
-5. 将 `worker4glados.js` 的代码复制到编辑器中
-6. 点击 `Save and Deploy`
+5. 将 [glados.js](https://raw.githubusercontent.com/axinhouzilaoyue/cloudflare/refs/heads/main/workers/glados.js) 的代码复制到编辑器中
+7. 点击 `Save and Deploy`
 
 ### 2. 配置账号信息
 
