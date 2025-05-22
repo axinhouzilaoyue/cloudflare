@@ -344,13 +344,19 @@ async function fetchPointsHistory() {
 
     for (const account of accounts) {
         try {
+            // 获取积分历史
             const data = { token: "glados.one" };
             const responseData = await makeApiRequest(API_ENDPOINTS.CHECKIN, 'POST', account.cookie, data);
+
+            // 获取账号状态（剩余天数）
+            const statusData = await makeApiRequest(API_ENDPOINTS.STATUS, 'GET', account.cookie);
+            const leftDays = statusData.data && statusData.data.leftDays ? formatDays(statusData.data.leftDays) : "未知";
 
             if (responseData.code === 1 && Array.isArray(responseData.list)) {
                 // 处理积分历史数据
                 const accountData = {
                     email: account.email,
+                    leftDays: leftDays, // 添加剩余天数信息
                     history: responseData.list.map(item => ({
                             time: new Date(parseInt(item.time)),
                             balance: parseFloat(item.balance),
@@ -391,114 +397,207 @@ function generateChartHtml() {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GLaDOS 积分历史图表</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.1.0/dist/chartjs-plugin-annotation.min.js"></script>
     <style>
         :root {
-            --primary-color: #3498db;
-            --success-color: #27ae60;
-            --danger-color: #e74c3c;
-            --text-color: #333;
-            --bg-color: #f5f5f5;
-            --card-bg: white;
-            --border-radius: 8px;
+            --primary-color: #007AFF;
+            --secondary-color: #5AC8FA;
+            --success-color: #34C759;
+            --danger-color: #FF3B30;
+            --warning-color: #FF9500;
+            --text-color: #1D1D1F;
+            --text-secondary: #86868B;
+            --bg-color: #F5F5F7;
+            --card-bg: #FFFFFF;
+            --border-radius: 12px;
+            --shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            --transition: all 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --primary-color: #0A84FF;
+                --secondary-color: #64D2FF;
+                --success-color: #30D158;
+                --danger-color: #FF453A;
+                --warning-color: #FF9F0A;
+                --text-color: #F5F5F7;
+                --text-secondary: #86868B;
+                --bg-color: #1D1D1F;
+                --card-bg: #2C2C2E;
+                --shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            }
         }
 
         * {
             box-sizing: border-box;
+            margin: 0;
+            padding: 0;
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Icons', 'Helvetica Neue', Helvetica, Arial, sans-serif;
             margin: 0;
-            padding: 10px;
+            padding: 16px;
             background-color: var(--bg-color);
             color: var(--text-color);
-            line-height: 1.6;
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
-        .container {
+            .container {
             width: 100%;
-            max-width: 1200px;
+            max-width: 1000px;
             margin: 0 auto;
-            background-color: var(--card-bg);
-            border-radius: var(--border-radius);
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 15px;
-        }
+            padding: 24px;
+            }
 
-        h1 {
+            h1 {
             color: var(--text-color);
             text-align: center;
-            margin-bottom: 20px;
-            font-size: 1.8rem;
-        }
+            margin-bottom: 32px;
+            font-size: 28px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            }
 
         .controls {
             display: flex;
             justify-content: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
+            margin-bottom: 32px;
+            gap: 12px;
+            }
 
         .btn {
-            background-color: var(--primary-color);
-            color: white;
-            border: none;
+            background-color: var(--card-bg);
+            color: var(--primary-color);
+            border: 1px solid rgba(0, 0, 0, 0.1);
             padding: 8px 16px;
-            border-radius: 4px;
+            border-radius: 8px;
             cursor: pointer;
             font-size: 14px;
-            transition: background-color 0.2s;
+            font-weight: 500;
+            transition: var(--transition);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .btn svg {
+            width: 14px;
+            height: 14px;
         }
 
         .btn:hover {
-            background-color: #2980b9;
+            background-color: rgba(0, 122, 255, 0.1);
+            transform: translateY(-1px);
         }
 
-        .chart-container {
+        .btn:active {
+            transform: translateY(0);
+            background-color: rgba(0, 122, 255, 0.2);
+        }
+
+            .chart-container {
             position: relative;
             height: 300px;
-            margin-bottom: 20px;
-        }
+            margin-bottom: 32px;
+            border-radius: var(--border-radius);
+            background-color: var(--card-bg);
+            padding: 16px;
+            box-shadow: var(--shadow);
+            transition: var(--transition);
+            }
+
+        .chart-container:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+            }
 
         .account-info {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: #f9f9f9;
+            margin-top: 24px;
             border-radius: var(--border-radius);
-            transition: all 0.3s ease;
-        }
+            background-color: var(--card-bg);
+            box-shadow: var(--shadow);
+            overflow: hidden;
+            transition: var(--transition);
+            }
+
+        .account-info:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+            transform: translateY(-2px);
+            }
 
         .account-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
             cursor: pointer;
-            padding-bottom: 5px;
-            border-bottom: 1px solid #ddd;
+            padding: 16px 20px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            transition: var(--transition);
+        }
+
+        .account-header:hover {
+            background-color: rgba(0, 0, 0, 0.02);
         }
 
         .account-title {
-            font-weight: bold;
+            font-weight: 500;
             color: var(--text-color);
-            font-size: 1.1rem;
+            font-size: 16px;
             display: flex;
             align-items: center;
         }
 
+        .days-remaining {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--primary-color);
+            background-color: rgba(0, 122, 255, 0.1);
+            padding: 6px 12px;
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            transition: var(--transition);
+        }
+
+        .days-remaining::before {
+            content: "⏱️";
+            margin-right: 6px;
+            font-size: 14px;
+        }
+
+        .days-remaining:hover {
+            background-color: rgba(0, 122, 255, 0.2);
+            transform: translateY(-1px);
+        }
+
         .account-content {
             overflow: hidden;
-            transition: max-height 0.3s ease;
+            transition: max-height 0.5s cubic-bezier(0.25, 0.1, 0.25, 1);
             max-height: 2000px;
+            padding: 0 20px 20px;
         }
 
         .account-content.collapsed {
             max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
         }
 
         .toggle-icon {
-            transition: transform 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
             margin-right: 8px;
+            color: var(--primary-color);
+            transition: transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
         }
 
         .collapsed .toggle-icon {
@@ -507,28 +606,42 @@ function generateChartHtml() {
 
         .stats {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-            gap: 10px;
-            margin-top: 15px;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+            margin-bottom: 20px;
         }
 
         .stat-card {
-            background-color: var(--card-bg);
-            padding: 12px;
-            border-radius: 5px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            background-color: rgba(0, 0, 0, 0.02);
+            padding: 16px;
+            border-radius: 10px;
+            transition: var(--transition);
+        }
+
+        .stat-card:hover {
+            background-color: rgba(0, 0, 0, 0.04);
+            transform: translateY(-2px);
         }
 
         .stat-title {
             font-size: 13px;
-            color: #666;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
         }
 
         .stat-value {
-            font-size: 18px;
-            font-weight: bold;
-            margin-top: 5px;
-            color: #2c3e50;
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-color);
+            letter-spacing: -0.5px;
+        }
+
+        .stat-subtitle {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-left: 4px;
         }
 
         .positive {
@@ -541,50 +654,60 @@ function generateChartHtml() {
 
         @media (max-width: 768px) {
             body {
-                padding: 5px;
+                padding: 12px;
             }
 
             .container {
-                padding: 10px;
+                padding: 16px;
             }
 
             h1 {
-                font-size: 1.5rem;
-                margin-bottom: 15px;
+                font-size: 24px;
+                margin-bottom: 24px;
             }
 
             .chart-container {
                 height: 250px;
+                padding: 12px;
             }
 
             .stats {
                 grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
             }
 
             .stat-card {
-                padding: 10px;
+                padding: 12px;
             }
 
             .stat-value {
-                font-size: 16px;
+                font-size: 18px;
             }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>GLaDOS 积分历史图表</h1>
+        <h1>GLaDOS 积分历史</h1>
 
         <div class="controls">
-            <button class="btn" id="expandAll">全部展开</button>
-            <button class="btn" id="collapseAll">全部折叠</button>
-        </div>
-
-        ${pointsHistory.map((accountData, index) => {
+            <button class="btn" id="expandAll">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12H21M12 3V21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            </svg>
+                全部展开
+            </button>
+            <button class="btn" id="collapseAll">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M3 12H21" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+                全部折叠
+            </button>
+                        </div>
+            ${pointsHistory.map((accountData, index) => {
             // 提取数据用于图表
-            const dates = accountData.history.map(item => item.time.toLocaleDateString());
-            const balances = accountData.history.map(item => item.balance);
-
+                const dates = accountData.history.map(item => item.time.toLocaleDateString());
+                const balances = accountData.history.map(item => item.balance);
             // 计算统计信息
             const currentBalance = balances.length > 0 ? balances[balances.length - 1] : 0;
             const changes = accountData.history.map(item => item.change);
@@ -605,11 +728,15 @@ function generateChartHtml() {
             <div class="account-info" data-account-id="${index}">
                 <div class="account-header" onclick="toggleAccount(${index})">
                     <div class="account-title">
-                        <span class="toggle-icon">▼</span>
-                        账号: ${accountData.email}
-                    </div>
-                    <div class="stat-value">${currentBalance.toFixed(2)} 积分</div>
+                        <span class="toggle-icon">
+                            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M6 9.5L11 4.5L10.1 3.6L6 7.7L1.9 3.6L1 4.5L6 9.5Z" fill="currentColor"/>
+                            </svg>
+                        </span>
+                        ${accountData.email}
                 </div>
+                    <div class="days-remaining">剩余 ${accountData.leftDays} 天</div>
+                        </div>
 
                 <div class="account-content" id="account-content-${index}">
                     <div class="stats">
@@ -618,40 +745,44 @@ function generateChartHtml() {
                             <div class="stat-value">${currentBalance.toFixed(2)}</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-title">累计获得积分</div>
-                            <div class="stat-value positive">+${totalEarned.toFixed(2)}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-title">累计消费积分</div>
-                            <div class="stat-value negative">-${totalSpent.toFixed(2)}</div>
+                            <div class="stat-title">剩余天数</div>
+                            <div class="stat-value">${accountData.leftDays}</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-title">签到次数</div>
                             <div class="stat-value">${checkinCount}</div>
                         </div>
                         <div class="stat-card">
-                            <div class="stat-title">兑换次数</div>
-                            <div class="stat-value">${collectCount}</div>
+                            <div class="stat-title">累计获得</div>
+                            <div class="stat-value positive">+${totalEarned.toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">累计消费 / 兑换次数</div>
+                            <div class="stat-value">
+                                <span class="negative">-${totalSpent.toFixed(2)}</span>
+                                <span class="stat-subtitle"> / ${collectCount}次</span>
+                            </div>
                         </div>
                     </div>
-
                     <div class="chart-container">
                         <canvas id="chart${index}"></canvas>
                     </div>
                 </div>
             </div>
-            `;
-        }).join('')}
+  `;
+            }).join('')}
     </div>
 
     <script>
         // 初始化图表
         document.addEventListener('DOMContentLoaded', function() {
+            // 设置Chart.js全局默认值
+            Chart.defaults.font.family = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif';
+            Chart.defaults.color = getComputedStyle(document.documentElement).getPropertyValue('--text-secondary').trim();
             // 为每个账号创建图表
             ${pointsHistory.map((accountData, index) => {
                 const dates = accountData.history.map(item => item.time.toLocaleDateString());
                 const balances = accountData.history.map(item => item.balance);
-
                 return `
                 const ctx${index} = document.getElementById('chart${index}');
                 if (ctx${index}) {
@@ -662,12 +793,19 @@ function generateChartHtml() {
                             datasets: [{
                                 label: '积分余额',
                                 data: ${JSON.stringify(balances)},
-                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                                borderColor: 'rgba(54, 162, 235, 1)',
+                                backgroundColor: 'rgba(0, 122, 255, 0.1)',
+                                borderColor: 'rgba(0, 122, 255, 0.8)',
                                 borderWidth: 2,
-                                pointRadius: 3,
-                                pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-                                tension: 0.1
+                                pointRadius: 4,
+                                pointBackgroundColor: 'rgba(0, 122, 255, 1)',
+                                pointBorderColor: '#FFFFFF',
+                                pointBorderWidth: 2,
+                                pointHoverRadius: 6,
+                                pointHoverBackgroundColor: 'rgba(0, 122, 255, 1)',
+                                pointHoverBorderColor: '#FFFFFF',
+                                pointHoverBorderWidth: 2,
+                                tension: 0.4,
+                                fill: true
                             }]
                         },
                         options: {
@@ -675,16 +813,56 @@ function generateChartHtml() {
                             maintainAspectRatio: false,
                             plugins: {
                                 title: {
-                                    display: true,
-                                    text: '积分余额变化趋势',
-                                    font: {
-                                        size: 16
-                                    }
+                                    display: false
+                                },
+                                legend: {
+                                    display: false
                                 },
                                 tooltip: {
+                                    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+                                    titleFont: {
+                                        size: 13,
+                                        weight: '500'
+                                    },
+                                    bodyFont: {
+                                        size: 14,
+                                        weight: '600'
+                                    },
+                                    padding: 12,
+                                    cornerRadius: 8,
                                     callbacks: {
                                         label: function(context) {
                                             return '积分: ' + context.parsed.y.toFixed(2);
+                                        }
+                                    }
+                                },
+                                annotation: {
+                                    annotations: {
+                                        line100: {
+                                            type: 'line',
+                                            yMin: 100,
+                                            yMax: 100,
+                                            borderColor: 'rgba(255, 59, 48, 0.7)',
+                                            borderWidth: 1.5,
+                                            borderDash: [5, 5],
+                                            label: {
+                                                display: true,
+                                                content: '100积分',
+                                                position: 'start',
+                                                backgroundColor: 'rgba(255, 59, 48, 0.7)',
+                                                color: '#FFFFFF',
+                                                font: {
+                                                    size: 12,
+                                                    weight: '500'
+                                                },
+                                                padding: {
+                                                    top: 4,
+                                                    bottom: 4,
+                                                    left: 8,
+                                                    right: 8
+                                                },
+                                                borderRadius: 4
+                                            }
                                         }
                                     }
                                 }
@@ -692,26 +870,59 @@ function generateChartHtml() {
                             scales: {
                                 y: {
                                     beginAtZero: false,
-                                    title: {
-                                        display: true,
-                                        text: '积分'
+                                    grid: {
+                                        color: 'rgba(0, 0, 0, 0.05)',
+                                        drawBorder: false
+                                    },
+                                    ticks: {
+                                        padding: 8,
+                                        font: {
+                                            size: 11
+                                        }
+                                    },
+                                    border: {
+                                        display: false
                                     }
                                 },
                                 x: {
-                                    title: {
-                                        display: true,
-                                        text: '日期'
+                                    grid: {
+                                        display: false,
+                                        drawBorder: false
                                     },
                                     ticks: {
                                         maxRotation: 45,
-                                        minRotation: 45
+                                        minRotation: 45,
+                                        padding: 8,
+                                        font: {
+                                            size: 11
+                                        }
+                                    },
+                                    border: {
+                                        display: false
                                     }
+                                }
+                            },
+                            interaction: {
+                                mode: 'index',
+                                intersect: false
+                            },
+                            elements: {
+                                line: {
+                                    tension: 0.3
+                                }
+                            },
+                            layout: {
+                                padding: {
+                                    top: 10,
+                                    right: 16,
+                                    bottom: 10,
+                                    left: 16
                                 }
                             }
                         }
-                    });
+            });
                 }
-                `;
+  `;
             }).join('')}
 
             // 默认展开第一个账号，折叠其他账号
@@ -719,7 +930,7 @@ function generateChartHtml() {
             accounts.forEach((account, idx) => {
                 if (idx > 0) {
                     toggleAccount(idx);
-                }
+}
             });
         });
 
@@ -729,12 +940,12 @@ function generateChartHtml() {
             content.classList.toggle('collapsed');
 
             const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
-            const toggleIcon = accountInfo.querySelector('.toggle-icon');
+            const toggleIcon = accountInfo.querySelector('.toggle-icon svg');
 
             if (content.classList.contains('collapsed')) {
-                toggleIcon.textContent = '►';
+                toggleIcon.style.transform = 'rotate(-90deg)';
             } else {
-                toggleIcon.textContent = '▼';
+                toggleIcon.style.transform = 'rotate(0deg)';
             }
         }
 
@@ -744,8 +955,8 @@ function generateChartHtml() {
             contents.forEach((content, index) => {
                 content.classList.remove('collapsed');
                 const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
-                const toggleIcon = accountInfo.querySelector('.toggle-icon');
-                toggleIcon.textContent = '▼';
+                const toggleIcon = accountInfo.querySelector('.toggle-icon svg');
+                toggleIcon.style.transform = 'rotate(0deg)';
             });
         });
 
@@ -755,10 +966,18 @@ function generateChartHtml() {
             contents.forEach((content, index) => {
                 content.classList.add('collapsed');
                 const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
-                const toggleIcon = accountInfo.querySelector('.toggle-icon');
-                toggleIcon.textContent = '►';
+                const toggleIcon = accountInfo.querySelector('.toggle-icon svg');
+                toggleIcon.style.transform = 'rotate(-90deg)';
             });
         });
+
+        // 检测系统深色/浅色模式变化
+        if (window.matchMedia) {
+            const colorSchemeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+            colorSchemeQuery.addEventListener('change', () => {
+                location.reload(); // 重新加载页面以应用新的颜色方案
+            });
+        }
     </script>
 </body>
 </html>
