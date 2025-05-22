@@ -135,16 +135,27 @@ function generateHeaders(cookie) {
 }
 
 // 翻译签到消息
-function translateMessage(rawMessage) {
+function translateMessage(responseData) {
+    // 参数验证
+    if (!responseData || typeof responseData !== 'object') {
+        return "无效的签到数据 ⚠️";
+    }
+    
+    const rawMessage = responseData.message;
+    const currentBalance = responseData.list && responseData.list[0] 
+        ? Math.floor(parseFloat(responseData.list[0].balance))
+        : '未知';
+    
     if (rawMessage === "Please Try Tomorrow") {
-        return "签到失败，请明天再试 🤖";
-    } else if (rawMessage.includes("Checkin! Got")) {
-        const points = rawMessage.split("Got ")[1].split(" Points")[0];
-        return `签到成功，获得${points}积分 🎉`;
+        return `签到失败，请明天再试 🤖\n当前余额：${currentBalance}积分`;
+    } else if (rawMessage && rawMessage.includes("Checkin! Got")) {
+        const match = rawMessage.match(/Got (\d+) Points?/);
+        const points = match ? match[1] : '未知';
+        return `签到成功，获得${points}积分 🎉\n当前余额：${currentBalance}积分`;
     } else if (rawMessage === "Checkin Repeats! Please Try Tomorrow") {
-        return "重复签到，请明天再试 🔁";
+        return `重复签到，请明天再试 🔁\n当前余额：${currentBalance}积分`;
     } else {
-        return `未知的签到结果: ${rawMessage} ❓`;
+        return `未知的签到结果: ${rawMessage} ❓\n当前余额：${currentBalance}积分`;
     }
 }
 
@@ -257,8 +268,7 @@ async function performCheckin(email, cookie) {
         }
 
         const responseData = await response.json();
-        const rawMessage = responseData.message || "";
-        const translatedMessage = translateMessage(rawMessage);
+        const translatedMessage = translateMessage(responseData);
 
         const result = `<b>${email}</b>: ${translatedMessage}`;
         console.log(`签到结果: ${result}`);
