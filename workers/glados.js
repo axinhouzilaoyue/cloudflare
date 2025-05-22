@@ -11,6 +11,7 @@ let BotToken = ''; // Telegram Bot Token
 let ChatID = ''; // Telegram Chat ID
 let 签到结果列表 = [];
 let 账号状态列表 = [];
+let 积分历史数据 = []; // 新增：存储积分历史数据
 
 export default {
     // HTTP 请求处理函数
@@ -40,9 +41,13 @@ export default {
                 status: 200,
                 headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
             });
+        } else if (url.pathname == "/checkinChart") {
+            // 新增：积分历史图表端点
+            await fetchPointsHistory();
+            return generateChartResponse();
         }
 
-        return new Response("GLaDOS 多账号签到服务正在运行\n\n可用端点:\n/checkin - 执行签到并查询状态\n/status - 仅查询账号状态\n/tg - 执行签到并发送结果到 Telegram", {
+        return new Response("GLaDOS 多账号签到服务正在运行\n\n可用端点:\n/checkin - 执行签到并查询状态\n/status - 仅查询账号状态\n/tg - 执行签到并发送结果到 Telegram\n/checkinChart - 查看积分历史图表", {
             status: 200,
             headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
         });
@@ -74,6 +79,7 @@ async function initializeVariables(env) {
     accounts = [];
     签到结果列表 = [];
     账号状态列表 = [];
+    积分历史数据 = []; // 新增：重置积分历史数据
 
     // 设置 Telegram 信息
     BotToken = env.TGTOKEN || BotToken;
@@ -140,12 +146,12 @@ function translateMessage(responseData) {
     if (!responseData || typeof responseData !== 'object') {
         return "无效的签到数据 ⚠️";
     }
-    
+
     const rawMessage = responseData.message;
-    const currentBalance = responseData.list && responseData.list[0] 
-        ? Math.floor(parseFloat(responseData.list[0].balance))
-        : '未知';
-    
+    const currentBalance = responseData.list && responseData.list[0] ?
+        Math.floor(parseFloat(responseData.list[0].balance)) :
+        '未知';
+
     if (rawMessage === "Please Try Tomorrow") {
         return `签到失败，请明天再试 🤖\n当前余额：${currentBalance}积分`;
     } else if (rawMessage && rawMessage.includes("Checkin! Got")) {
@@ -313,4 +319,264 @@ async function checkAccountStatus(email, cookie) {
         console.error('获取账号状态错误:', error);
         return `<b>${email}</b>: 获取状态失败 - ${error.message} ❌`;
     }
+}
+// 新增：获取积分历史数据
+async function fetchPointsHistory() {
+    积分历史数据 = [];
+
+    if (accounts.length === 0) {
+        return;
+    }
+
+    for (const account of accounts) {
+        try {
+            // 修改为与签到相同的接口
+            const url = "https://glados.rocks/api/user/checkin";
+            const headers = generateHeaders(account.cookie);
+            const data = { token: "glados.one" };
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: headers,
+                body: JSON.stringify(data)
+            });
+
+            if (!response.ok) {
+                console.error(`获取积分历史失败: ${response.status} ${response.statusText}`);
+                continue;
+            }
+
+            const responseData = await response.json();
+            if (responseData.code === 1 && Array.isArray(responseData.list)) {
+                // 处理积分历史数据
+                const accountData = {
+                    email: account.email,
+                    history: responseData.list.map(item => ({
+                            time: new Date(parseInt(item.time)),
+                            balance: parseFloat(item.balance),
+                            change: parseFloat(item.change),
+                            business: item.business
+                        })).sort((a, b) => a.time - b.time) // 按时间排序
+                };
+                积分历史数据.push(accountData);
+            }
+        } catch (error) {
+            console.error(`获取账号 ${account.email} 积分历史错误:`, error);
+        }
+    }
+}
+
+// 新增：生成图表响应
+function generateChartResponse() {
+    // 如果没有数据，返回提示信息
+    if (积分历史数据.length === 0) {
+        return new Response("未获取到任何积分历史数据，请确保账号配置正确。", {
+            status: 200,
+            headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
+        });
+    }
+
+    // 生成HTML页面，包含Chart.js图表
+    const html = `
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GLaDOS 积分历史图表</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+            margin-bottom: 30px;
+        }
+        .account-info {
+            margin-top: 40px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .account-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+        }
+        .stats {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            flex: 1;
+            min-width: 200px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+        .stat-title {
+            font-size: 14px;
+            color: #666;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+            color: #2c3e50;
+        }
+        .positive {
+            color: #27ae60;
+        }
+        .negative {
+            color: #e74c3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>GLaDOS 积分历史图表</h1>
+
+        ${积分历史数据.map((accountData, index) => {
+            // 提取数据用于图表
+            const dates = accountData.history.map(item => item.time.toLocaleDateString());
+            const balances = accountData.history.map(item => item.balance);
+
+            // 计算统计信息
+            const currentBalance = balances.length > 0 ? balances[balances.length - 1] : 0;
+            const changes = accountData.history.map(item => item.change);
+            const totalEarned = changes.filter(change => change > 0).reduce((sum, change) => sum + change, 0);
+            const totalSpent = Math.abs(changes.filter(change => change < 0).reduce((sum, change) => sum + change, 0));
+
+            // 计算签到次数
+            const checkinCount = accountData.history.filter(item =>
+                item.business && item.business.includes('checkin')
+            ).length;
+
+            // 计算兑换次数
+            const collectCount = accountData.history.filter(item =>
+                item.business && item.business.includes('collect')
+            ).length;
+
+            return `
+            <div class="account-info">
+                <div class="account-title">账号: ${accountData.email}</div>
+
+                <div class="stats">
+                    <div class="stat-card">
+                        <div class="stat-title">当前积分</div>
+                        <div class="stat-value">${currentBalance.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">累计获得积分</div>
+                        <div class="stat-value positive">+${totalEarned.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">累计消费积分</div>
+                        <div class="stat-value negative">-${totalSpent.toFixed(2)}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">签到次数</div>
+                        <div class="stat-value">${checkinCount}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-title">兑换次数</div>
+                        <div class="stat-value">${collectCount}</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="chart${index}"></canvas>
+                </div>
+
+                <script>
+                    document.addEventListener('DOMContentLoaded', function() {
+                        const ctx${index} = document.getElementById('chart${index}').getContext('2d');
+                        new Chart(ctx${index}, {
+                            type: 'line',
+                            data: {
+                                labels: ${JSON.stringify(dates)},
+                                datasets: [{
+                                    label: '积分余额',
+                                    data: ${JSON.stringify(balances)},
+                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                    borderColor: 'rgba(54, 162, 235, 1)',
+                                    borderWidth: 2,
+                                    pointRadius: 3,
+                                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                                    tension: 0.1
+                                }]
+                            },
+                            options: {
+                                responsive: true,
+                                maintainAspectRatio: false,
+                                plugins: {
+                                    title: {
+                                        display: true,
+                                        text: '积分余额变化趋势',
+                                        font: {
+                                            size: 16
+                                        }
+                                    },
+                                    tooltip: {
+                                        callbacks: {
+                                            label: function(context) {
+                                                return '积分: ' + context.parsed.y.toFixed(2);
+                                            }
+                                        }
+                                    }
+                                },
+                                scales: {
+                                    y: {
+                                        beginAtZero: false,
+                                        title: {
+                                            display: true,
+                                            text: '积分'
+                                        }
+                                    },
+                                    x: {
+                                        title: {
+                                            display: true,
+                                            text: '日期'
+                                        }
+                                    }
+                                }
+                            }
+                        });
+                    });
+                </script>
+            </div>
+            `;
+        }).join('')}
+    </div>
+</body>
+</html>
+    `;
+
+    return new Response(html, {
+        status: 200,
+        headers: { 'Content-Type': 'text/html;charset=UTF-8' }
+    });
 }
