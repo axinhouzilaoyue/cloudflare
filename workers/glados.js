@@ -1,17 +1,25 @@
 // GLaDOS 签到 Cloudflare Worker
-// 参考 glados.py 实现，支持 Telegram 通知
-// 支持多账号签到，使用 JSON 格式的环境变量
+// 支持多账号签到，使用 JSON 格式的环境变量，支持 Telegram 通知
 
-// 可以在这里直接设置账号信息，格式为 [{email: '邮箱', cookie: 'Cookie字符串'}, ...]
+// 常量定义
+const API_BASE_URL = "https://glados.rocks/api";
+const API_ENDPOINTS = {
+    CHECKIN: "/user/checkin",
+    STATUS: "/user/status"
+};
+const CONTENT_TYPE_TEXT = { 'Content-Type': 'text/plain;charset=UTF-8' };
+const CONTENT_TYPE_HTML = { 'Content-Type': 'text/html;charset=UTF-8' };
+
+// 全局变量
 let accounts = [
     // 示例：直接在代码中配置账号
     // {email: 'example@gmail.com', cookie: 'your_cookie_here'}
 ];
-let BotToken = ''; // Telegram Bot Token
-let ChatID = ''; // Telegram Chat ID
-let 签到结果列表 = [];
-let 账号状态列表 = [];
-let 积分历史数据 = []; // 新增：存储积分历史数据
+let botToken = ''; // Telegram Bot Token
+let chatId = ''; // Telegram Chat ID
+let checkinResults = [];
+let accountStatus = [];
+let pointsHistory = [];
 
 export default {
     // HTTP 请求处理函数
@@ -19,38 +27,36 @@ export default {
         await initializeVariables(env);
         const url = new URL(request.url);
 
-        if (url.pathname == "/tg") {
-            // 修改 /tg 端点，先执行签到和状态查询，再发送通知
-            await performAllCheckins();
-            await checkAllAccountStatus();
-            await sendMessage(request);
-            return new Response("已执行签到并发送结果到 Telegram", {
-                status: 200,
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
-            });
-        } else if (url.pathname == "/checkin") {
-            await performAllCheckins();
-            await checkAllAccountStatus();
-            return new Response(签到结果列表.join("\n") + "\n\n" + 账号状态列表.join("\n"), {
-                status: 200,
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
-            });
-        } else if (url.pathname == "/status") {
-            await checkAllAccountStatus();
-            return new Response(账号状态列表.join("\n"), {
-                status: 200,
-                headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
-            });
-        } else if (url.pathname == "/checkinChart") {
-            // 新增：积分历史图表端点
-            await fetchPointsHistory();
-            return generateChartResponse();
-        }
+        // 路由处理
+        switch (url.pathname) {
+            case "/tg":
+                await performAllCheckins();
+                await checkAllAccountStatus();
+                await sendTelegramMessage(request);
+                return createResponse("已执行签到并发送结果到 Telegram");
 
-        return new Response("GLaDOS 多账号签到服务正在运行\n\n可用端点:\n/checkin - 执行签到并查询状态\n/status - 仅查询账号状态\n/tg - 执行签到并发送结果到 Telegram\n/checkinChart - 查看积分历史图表", {
-            status: 200,
-            headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
-        });
+            case "/checkin":
+                await performAllCheckins();
+                await checkAllAccountStatus();
+                return createResponse(checkinResults.join("\n") + "\n\n" + accountStatus.join("\n"));
+
+            case "/status":
+                await checkAllAccountStatus();
+                return createResponse(accountStatus.join("\n"));
+
+            case "/checkinChart":
+                await fetchPointsHistory();
+                return generateChartResponse();
+
+            default:
+                return createResponse(
+                    "GLaDOS 多账号签到服务正在运行\n\n可用端点:\n" +
+                    "/checkin - 执行签到并查询状态\n" +
+                    "/status - 仅查询账号状态\n" +
+                    "/tg - 执行签到并发送结果到 Telegram\n" +
+                    "/checkinChart - 查看积分历史图表"
+                );
+        }
     },
 
     // 定时任务处理函数
@@ -60,15 +66,20 @@ export default {
             await initializeVariables(env);
             await performAllCheckins();
             await checkAllAccountStatus();
-            await sendMessage(); // 定时任务中不传递request参数
+            await sendTelegramMessage();
             console.log('GLaDOS 多账号签到定时任务完成');
         } catch (error) {
             console.error('定时任务失败:', error);
-            签到结果列表.push(`定时任务执行失败: ${error.message}`);
-            await sendMessage(); // 定时任务中不传递request参数
+            checkinResults.push(`定时任务执行失败: ${error.message}`);
+            await sendTelegramMessage();
         }
     },
 };
+
+// 创建统一的响应对象
+function createResponse(content, headers = CONTENT_TYPE_TEXT, status = 200) {
+    return new Response(content, { status, headers });
+}
 
 // 初始化变量
 async function initializeVariables(env) {
@@ -77,18 +88,19 @@ async function initializeVariables(env) {
 
     // 重置列表
     accounts = [];
-    签到结果列表 = [];
-    账号状态列表 = [];
-    积分历史数据 = []; // 新增：重置积分历史数据
+    checkinResults = [];
+    accountStatus = [];
+    pointsHistory = [];
 
     // 设置 Telegram 信息
-    BotToken = env.TGTOKEN || BotToken;
-    ChatID = env.TGID || ChatID;
+    botToken = env.TGTOKEN || botToken;
+    chatId = env.TGID || chatId;
 
-    // 1. 首先尝试从环境变量加载账号
-    const accountsJson = env.GLADOS_ACCOUNTS || '[]';
+    // 尝试从环境变量加载账号
     try {
+        const accountsJson = env.GLADOS_ACCOUNTS || '[]';
         const parsedAccounts = JSON.parse(accountsJson);
+
         if (Array.isArray(parsedAccounts) && parsedAccounts.length > 0) {
             accounts = parsedAccounts.filter(acc => acc.email && acc.cookie);
             console.log(`从环境变量加载了 ${accounts.length} 个账号`);
@@ -97,7 +109,7 @@ async function initializeVariables(env) {
         console.error('解析环境变量账号信息失败:', error);
     }
 
-    // 2. 如果环境变量中没有配置任何账号，使用代码中硬编码的账号
+    // 如果环境变量中没有配置任何账号，使用代码中硬编码的账号
     if (accounts.length === 0 && hardcodedAccounts.length > 0) {
         accounts = hardcodedAccounts.filter(acc => acc.email && acc.cookie);
         console.log(`使用代码中配置的 ${accounts.length} 个账号`);
@@ -105,8 +117,6 @@ async function initializeVariables(env) {
 
     if (accounts.length === 0) {
         console.warn('未配置任何账号信息，请在代码中或环境变量中设置账号');
-    } else {
-        console.log(`共加载 ${accounts.length} 个账号`);
     }
 }
 
@@ -140,17 +150,41 @@ function generateHeaders(cookie) {
     };
 }
 
-// 翻译签到消息
+// 执行API请求
+async function makeApiRequest(endpoint, method, cookie, data = null) {
+    if (!cookie) {
+        throw new Error('Cookie 未设置');
+    }
+
+    const url = API_BASE_URL + endpoint;
+    const headers = generateHeaders(cookie);
+    const options = {
+        method,
+        headers
+    };
+
+    if (data) {
+        options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+        throw new Error(`请求失败: ${response.status} ${response.statusText}`);
+    }
+
+    return response.json();
+}
+
+// 转换签到消息
 function translateMessage(responseData) {
-    // 参数验证
     if (!responseData || typeof responseData !== 'object') {
         return "无效的签到数据 ⚠️";
     }
 
     const rawMessage = responseData.message;
     const currentBalance = responseData.list && responseData.list[0] ?
-        Math.floor(parseFloat(responseData.list[0].balance)) :
-        '未知';
+        Math.floor(parseFloat(responseData.list[0].balance)) : '未知';
 
     if (rawMessage === "Please Try Tomorrow") {
         return `签到失败，请明天再试 🤖\n当前余额：${currentBalance}积分`;
@@ -174,160 +208,7 @@ function formatDays(daysStr) {
     return days.toFixed(8).replace(/\.?0+$/, '');
 }
 
-// 发送消息到 Telegram
-async function sendMessage(request) {
-    const now = new Date();
-    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
-    const formattedTime = beijingTime.toISOString().slice(0, 19).replace('T', ' ');
-
-    let message = `<b>📊 GLaDOS 签到报告</b>\n`;
-    message += `<i>${formattedTime}</i>\n\n`;
-
-    if (签到结果列表.length > 0) {
-        message += `<b>📝 签到结果</b>\n${签到结果列表.join("\n")}\n\n`;
-    }
-
-    if (账号状态列表.length > 0) {
-        message += `<b>📈 账号状态</b>\n${账号状态列表.join("\n")}\n\n`;
-    }
-
-    message += `<code>✅ 共完成 ${accounts.length} 个账号的签到任务</code>`;
-
-    // 添加图表链接，仅当request参数存在时
-    if (request) {
-        const chartUrl = getWorkerUrl(request) + "/checkinChart";
-        message += `\n\n<b>📊 <a href="${chartUrl}">点击查看积分历史图表</a></b>`;
-    }
-
-    console.log(message);
-
-    if (BotToken !== '' && ChatID !== '') {
-        const url = `https://api.telegram.org/bot${BotToken}/sendMessage?chat_id=${ChatID}&parse_mode=HTML&text=${encodeURIComponent(message)}`;
-        return fetch(url, {
-            method: 'get',
-            headers: {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;',
-                'Accept-Encoding': 'gzip, deflate, br',
-                'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
-            }
-        });
-    }
-}
-
-// 执行所有账号的签到
-async function performAllCheckins() {
-    签到结果列表 = [];
-
-    if (accounts.length === 0) {
-        签到结果列表.push("⚠️ 未配置任何账号信息");
-        return;
-    }
-
-    for (const account of accounts) {
-        try {
-            const result = await performCheckin(account.email, account.cookie);
-            签到结果列表.push(result);
-        } catch (error) {
-            console.error(`账号 ${account.email} 签到错误:`, error);
-            签到结果列表.push(`<b>${account.email}</b>: 签到过程发生错误: ${error.message} ❌`);
-        }
-    }
-
-    return 签到结果列表;
-}
-
-// 检查所有账号的状态
-async function checkAllAccountStatus() {
-    账号状态列表 = [];
-
-    if (accounts.length === 0) {
-        账号状态列表.push("⚠️ 未配置任何账号信息");
-        return;
-    }
-
-    for (const account of accounts) {
-        try {
-            const result = await checkAccountStatus(account.email, account.cookie);
-            账号状态列表.push(result);
-        } catch (error) {
-            console.error(`账号 ${account.email} 状态查询错误:`, error);
-            账号状态列表.push(`<b>${account.email}</b>: 获取状态失败 - ${error.message} ❌`);
-        }
-    }
-
-    return 账号状态列表;
-}
-
-// 执行单个账号签到
-async function performCheckin(email, cookie) {
-    try {
-        if (!cookie) {
-            throw new Error('Cookie 未设置');
-        }
-
-        const url = "https://glados.rocks/api/user/checkin";
-        const headers = generateHeaders(cookie);
-        const data = { token: "glados.one" };
-
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: headers,
-            body: JSON.stringify(data)
-        });
-
-        if (!response.ok) {
-            throw new Error(`签到请求失败: ${response.status} ${response.statusText}`);
-        }
-
-        const responseData = await response.json();
-        const translatedMessage = translateMessage(responseData);
-
-        const result = `<b>${email}</b>: ${translatedMessage}`;
-        console.log(`签到结果: ${result}`);
-
-        return result;
-    } catch (error) {
-        console.error('签到错误:', error);
-        return `<b>${email}</b>: 签到过程发生错误: ${error.message} ❌`;
-    }
-}
-
-// 检查单个账号状态
-async function checkAccountStatus(email, cookie) {
-    try {
-        if (!cookie) {
-            throw new Error('Cookie 未设置');
-        }
-
-        const url = "https://glados.rocks/api/user/status";
-        const headers = generateHeaders(cookie);
-
-        const response = await fetch(url, {
-            method: 'GET',
-            headers: headers
-        });
-
-        if (!response.ok) {
-            throw new Error(`获取状态请求失败: ${response.status} ${response.statusText}`);
-        }
-
-        const data = await response.json();
-        if (!data.data || !data.data.leftDays) {
-            throw new Error('响应数据格式不正确');
-        }
-
-        const leftDays = formatDays(data.data.leftDays);
-        const result = `<b>${email}</b>: 剩余 <b><code>${leftDays}</code></b> 天`;
-        console.log(`账号状态: ${result}`);
-
-        return result;
-    } catch (error) {
-        console.error('获取账号状态错误:', error);
-        return `<b>${email}</b>: 获取状态失败 - ${error.message} ❌`;
-    }
-}
-
-// 新增：获取Worker的URL
+// 获取Worker的URL
 function getWorkerUrl(request) {
     if (!request) return '';
     try {
@@ -339,9 +220,123 @@ function getWorkerUrl(request) {
     }
 }
 
-// 新增：获取积分历史数据
+// 发送消息到 Telegram
+async function sendTelegramMessage(request) {
+    if (botToken === '' || chatId === '') {
+        return;
+    }
+
+    const now = new Date();
+    const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+    const formattedTime = beijingTime.toISOString().slice(0, 19).replace('T', ' ');
+
+    let message = `<b>📊 GLaDOS 签到报告</b>\n`;
+    message += `<i>${formattedTime}</i>\n\n`;
+
+    if (checkinResults.length > 0) {
+        message += `<b>📝 签到结果</b>\n${checkinResults.join("\n")}\n\n`;
+    }
+
+    if (accountStatus.length > 0) {
+        message += `<b>📈 账号状态</b>\n${accountStatus.join("\n")}\n\n`;
+    }
+
+    message += `<code>✅ 共完成 ${accounts.length} 个账号的签到任务</code>`;
+
+    // 添加图表链接，仅当request参数存在时
+    if (request) {
+        const chartUrl = getWorkerUrl(request) + "/checkinChart";
+        message += `\n\n<b>📊 <a href="${chartUrl}">点击查看积分历史图表</a></b>`;
+    }
+
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&parse_mode=HTML&text=${encodeURIComponent(message)}`;
+    return fetch(url, {
+        method: 'get',
+        headers: {
+            'Accept': 'text/html,application/xhtml+xml,application/xml;',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'User-Agent': 'Mozilla/5.0 Chrome/90.0.4430.72'
+        }
+    });
+}
+
+// 执行所有账号的签到
+async function performAllCheckins() {
+    checkinResults = [];
+
+    if (accounts.length === 0) {
+        checkinResults.push("⚠️ 未配置任何账号信息");
+        return;
+    }
+
+    for (const account of accounts) {
+        try {
+            const result = await performCheckin(account.email, account.cookie);
+            checkinResults.push(result);
+        } catch (error) {
+            console.error(`账号 ${account.email} 签到错误:`, error);
+            checkinResults.push(`<b>${account.email}</b>: 签到过程发生错误: ${error.message} ❌`);
+        }
+    }
+
+    return checkinResults;
+}
+
+// 检查所有账号的状态
+async function checkAllAccountStatus() {
+    accountStatus = [];
+
+    if (accounts.length === 0) {
+        accountStatus.push("⚠️ 未配置任何账号信息");
+        return;
+    }
+
+    for (const account of accounts) {
+        try {
+            const result = await checkAccountStatus(account.email, account.cookie);
+            accountStatus.push(result);
+        } catch (error) {
+            console.error(`账号 ${account.email} 状态查询错误:`, error);
+            accountStatus.push(`<b>${account.email}</b>: 获取状态失败 - ${error.message} ❌`);
+        }
+    }
+
+    return accountStatus;
+}
+
+// 执行单个账号签到
+async function performCheckin(email, cookie) {
+    try {
+        const data = { token: "glados.one" };
+        const responseData = await makeApiRequest(API_ENDPOINTS.CHECKIN, 'POST', cookie, data);
+        const translatedMessage = translateMessage(responseData);
+
+        const result = `<b>${email}</b>: ${translatedMessage}`;
+        return result;
+    } catch (error) {
+        throw new Error(`签到失败: ${error.message}`);
+    }
+}
+
+// 检查单个账号状态
+async function checkAccountStatus(email, cookie) {
+    try {
+        const data = await makeApiRequest(API_ENDPOINTS.STATUS, 'GET', cookie);
+
+        if (!data.data || !data.data.leftDays) {
+            throw new Error('响应数据格式不正确');
+        }
+
+        const leftDays = formatDays(data.data.leftDays);
+        return `<b>${email}</b>: 剩余 <b><code>${leftDays}</code></b> 天`;
+    } catch (error) {
+        throw new Error(`获取状态失败: ${error.message}`);
+    }
+}
+
+// 获取积分历史数据
 async function fetchPointsHistory() {
-    积分历史数据 = [];
+    pointsHistory = [];
 
     if (accounts.length === 0) {
         return;
@@ -349,23 +344,9 @@ async function fetchPointsHistory() {
 
     for (const account of accounts) {
         try {
-            // 修改为与签到相同的接口
-            const url = "https://glados.rocks/api/user/checkin";
-            const headers = generateHeaders(account.cookie);
             const data = { token: "glados.one" };
+            const responseData = await makeApiRequest(API_ENDPOINTS.CHECKIN, 'POST', account.cookie, data);
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(data)
-            });
-
-            if (!response.ok) {
-                console.error(`获取积分历史失败: ${response.status} ${response.statusText}`);
-                continue;
-            }
-
-            const responseData = await response.json();
             if (responseData.code === 1 && Array.isArray(responseData.list)) {
                 // 处理积分历史数据
                 const accountData = {
@@ -377,7 +358,7 @@ async function fetchPointsHistory() {
                             business: item.business
                         })).sort((a, b) => a.time - b.time) // 按时间排序
                 };
-                积分历史数据.push(accountData);
+                pointsHistory.push(accountData);
             }
         } catch (error) {
             console.error(`获取账号 ${account.email} 积分历史错误:`, error);
@@ -385,18 +366,24 @@ async function fetchPointsHistory() {
     }
 }
 
-// 新增：生成图表响应
+// 生成图表响应
 function generateChartResponse() {
     // 如果没有数据，返回提示信息
-    if (积分历史数据.length === 0) {
-        return new Response("未获取到任何积分历史数据，请确保账号配置正确。", {
-            status: 200,
-            headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
-        });
+    if (pointsHistory.length === 0) {
+        return createResponse("未获取到任何积分历史数据，请确保账号配置正确。");
     }
 
     // 生成HTML页面，包含Chart.js图表
-    const html = `
+    const html = generateChartHtml();
+    return new Response(html, {
+        status: 200,
+        headers: CONTENT_TYPE_HTML
+    });
+}
+
+// 生成图表HTML
+function generateChartHtml() {
+    return `
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -593,7 +580,7 @@ function generateChartResponse() {
             <button class="btn" id="collapseAll">全部折叠</button>
         </div>
 
-        ${积分历史数据.map((accountData, index) => {
+        ${pointsHistory.map((accountData, index) => {
             // 提取数据用于图表
             const dates = accountData.history.map(item => item.time.toLocaleDateString());
             const balances = accountData.history.map(item => item.balance);
@@ -661,7 +648,7 @@ function generateChartResponse() {
         // 初始化图表
         document.addEventListener('DOMContentLoaded', function() {
             // 为每个账号创建图表
-            ${积分历史数据.map((accountData, index) => {
+            ${pointsHistory.map((accountData, index) => {
                 const dates = accountData.history.map(item => item.time.toLocaleDateString());
                 const balances = accountData.history.map(item => item.balance);
 
@@ -775,10 +762,5 @@ function generateChartResponse() {
     </script>
 </body>
 </html>
-    `;
-
-    return new Response(html, {
-        status: 200,
-        headers: { 'Content-Type': 'text/html;charset=UTF-8' }
-    });
+  `;
 }
