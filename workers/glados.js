@@ -23,7 +23,7 @@ export default {
             // 修改 /tg 端点，先执行签到和状态查询，再发送通知
             await performAllCheckins();
             await checkAllAccountStatus();
-            await sendMessage();
+            await sendMessage(request);
             return new Response("已执行签到并发送结果到 Telegram", {
                 status: 200,
                 headers: { 'Content-Type': 'text/plain;charset=UTF-8' }
@@ -60,12 +60,12 @@ export default {
             await initializeVariables(env);
             await performAllCheckins();
             await checkAllAccountStatus();
-            await sendMessage();
+            await sendMessage(); // 定时任务中不传递request参数
             console.log('GLaDOS 多账号签到定时任务完成');
         } catch (error) {
             console.error('定时任务失败:', error);
             签到结果列表.push(`定时任务执行失败: ${error.message}`);
-            await sendMessage();
+            await sendMessage(); // 定时任务中不传递request参数
         }
     },
 };
@@ -175,7 +175,7 @@ function formatDays(daysStr) {
 }
 
 // 发送消息到 Telegram
-async function sendMessage() {
+async function sendMessage(request) {
     const now = new Date();
     const beijingTime = new Date(now.getTime() + 8 * 60 * 60 * 1000);
     const formattedTime = beijingTime.toISOString().slice(0, 19).replace('T', ' ');
@@ -192,6 +192,12 @@ async function sendMessage() {
     }
 
     message += `<code>✅ 共完成 ${accounts.length} 个账号的签到任务</code>`;
+
+    // 添加图表链接，仅当request参数存在时
+    if (request) {
+        const chartUrl = getWorkerUrl(request) + "/checkinChart";
+        message += `\n\n<b>📊 <a href="${chartUrl}">点击查看积分历史图表</a></b>`;
+    }
 
     console.log(message);
 
@@ -320,6 +326,19 @@ async function checkAccountStatus(email, cookie) {
         return `<b>${email}</b>: 获取状态失败 - ${error.message} ❌`;
     }
 }
+
+// 新增：获取Worker的URL
+function getWorkerUrl(request) {
+    if (!request) return '';
+    try {
+        const url = new URL(request.url);
+        return `${url.protocol}//${url.host}`;
+    } catch (error) {
+        console.error('获取Worker URL失败:', error);
+        return '';
+    }
+}
+
 // 新增：获取积分历史数据
 async function fetchPointsHistory() {
     积分历史数据 = [];
@@ -386,78 +405,193 @@ function generateChartResponse() {
     <title>GLaDOS 积分历史图表</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
+        :root {
+            --primary-color: #3498db;
+            --success-color: #27ae60;
+            --danger-color: #e74c3c;
+            --text-color: #333;
+            --bg-color: #f5f5f5;
+            --card-bg: white;
+            --border-radius: 8px;
         }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 10px;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
         .container {
+            width: 100%;
             max-width: 1200px;
             margin: 0 auto;
-            background-color: white;
-            border-radius: 8px;
+            background-color: var(--card-bg);
+            border-radius: var(--border-radius);
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            padding: 20px;
+            padding: 15px;
         }
+
         h1 {
-            color: #333;
+            color: var(--text-color);
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
+            font-size: 1.8rem;
         }
+
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: #2980b9;
+        }
+
         .chart-container {
             position: relative;
-            height: 400px;
-            margin-bottom: 30px;
+            height: 300px;
+            margin-bottom: 20px;
         }
+
         .account-info {
-            margin-top: 40px;
+            margin-top: 20px;
             padding: 15px;
             background-color: #f9f9f9;
-            border-radius: 5px;
+            border-radius: var(--border-radius);
+            transition: all 0.3s ease;
         }
+
+        .account-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            padding-bottom: 5px;
+            border-bottom: 1px solid #ddd;
+        }
+
         .account-title {
             font-weight: bold;
-            margin-bottom: 10px;
-            color: #333;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 5px;
-        }
-        .stats {
+            color: var(--text-color);
+            font-size: 1.1rem;
             display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-top: 20px;
+            align-items: center;
         }
+
+        .account-content {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            max-height: 2000px;
+        }
+
+        .account-content.collapsed {
+            max-height: 0;
+        }
+
+        .toggle-icon {
+            transition: transform 0.3s ease;
+            margin-right: 8px;
+        }
+
+        .collapsed .toggle-icon {
+            transform: rotate(-90deg);
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
         .stat-card {
-            flex: 1;
-            min-width: 200px;
-            background-color: white;
-            padding: 15px;
+            background-color: var(--card-bg);
+            padding: 12px;
             border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
         }
+
         .stat-title {
-            font-size: 14px;
+            font-size: 13px;
             color: #666;
         }
+
         .stat-value {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: bold;
             margin-top: 5px;
             color: #2c3e50;
         }
+
         .positive {
-            color: #27ae60;
+            color: var(--success-color);
         }
+
         .negative {
-            color: #e74c3c;
+            color: var(--danger-color);
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 5px;
+            }
+
+            .container {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+                margin-bottom: 15px;
+            }
+
+            .chart-container {
+                height: 250px;
+            }
+
+            .stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .stat-card {
+                padding: 10px;
+            }
+
+            .stat-value {
+                font-size: 16px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>GLaDOS 积分历史图表</h1>
+
+        <div class="controls">
+            <button class="btn" id="expandAll">全部展开</button>
+            <button class="btn" id="collapseAll">全部折叠</button>
+        </div>
 
         ${积分历史数据.map((accountData, index) => {
             // 提取数据用于图表
@@ -481,96 +615,164 @@ function generateChartResponse() {
             ).length;
 
             return `
-            <div class="account-info">
-                <div class="account-title">账号: ${accountData.email}</div>
-
-                <div class="stats">
-                    <div class="stat-card">
-                        <div class="stat-title">当前积分</div>
-                        <div class="stat-value">${currentBalance.toFixed(2)}</div>
+            <div class="account-info" data-account-id="${index}">
+                <div class="account-header" onclick="toggleAccount(${index})">
+                    <div class="account-title">
+                        <span class="toggle-icon">▼</span>
+                        账号: ${accountData.email}
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-title">累计获得积分</div>
-                        <div class="stat-value positive">+${totalEarned.toFixed(2)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-title">累计消费积分</div>
-                        <div class="stat-value negative">-${totalSpent.toFixed(2)}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-title">签到次数</div>
-                        <div class="stat-value">${checkinCount}</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-title">兑换次数</div>
-                        <div class="stat-value">${collectCount}</div>
-                    </div>
+                    <div class="stat-value">${currentBalance.toFixed(2)} 积分</div>
                 </div>
 
-                <div class="chart-container">
-                    <canvas id="chart${index}"></canvas>
-                </div>
+                <div class="account-content" id="account-content-${index}">
+                    <div class="stats">
+                        <div class="stat-card">
+                            <div class="stat-title">当前积分</div>
+                            <div class="stat-value">${currentBalance.toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">累计获得积分</div>
+                            <div class="stat-value positive">+${totalEarned.toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">累计消费积分</div>
+                            <div class="stat-value negative">-${totalSpent.toFixed(2)}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">签到次数</div>
+                            <div class="stat-value">${checkinCount}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">兑换次数</div>
+                            <div class="stat-value">${collectCount}</div>
+                        </div>
+                    </div>
 
-                <script>
-                    document.addEventListener('DOMContentLoaded', function() {
-                        const ctx${index} = document.getElementById('chart${index}').getContext('2d');
-                        new Chart(ctx${index}, {
-                            type: 'line',
-                            data: {
-                                labels: ${JSON.stringify(dates)},
-                                datasets: [{
-                                    label: '积分余额',
-                                    data: ${JSON.stringify(balances)},
-                                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
-                                    borderColor: 'rgba(54, 162, 235, 1)',
-                                    borderWidth: 2,
-                                    pointRadius: 3,
-                                    pointBackgroundColor: 'rgba(54, 162, 235, 1)',
-                                    tension: 0.1
-                                }]
-                            },
-                            options: {
-                                responsive: true,
-                                maintainAspectRatio: false,
-                                plugins: {
-                                    title: {
-                                        display: true,
-                                        text: '积分余额变化趋势',
-                                        font: {
-                                            size: 16
-                                        }
-                                    },
-                                    tooltip: {
-                                        callbacks: {
-                                            label: function(context) {
-                                                return '积分: ' + context.parsed.y.toFixed(2);
-                                            }
-                                        }
-                                    }
-                                },
-                                scales: {
-                                    y: {
-                                        beginAtZero: false,
-                                        title: {
-                                            display: true,
-                                            text: '积分'
-                                        }
-                                    },
-                                    x: {
-                                        title: {
-                                            display: true,
-                                            text: '日期'
-                                        }
-                                    }
-                                }
-                            }
-                        });
-                    });
-                </script>
+                    <div class="chart-container">
+                        <canvas id="chart${index}"></canvas>
+                    </div>
+                </div>
             </div>
             `;
         }).join('')}
     </div>
+
+    <script>
+        // 初始化图表
+        document.addEventListener('DOMContentLoaded', function() {
+            // 为每个账号创建图表
+            ${积分历史数据.map((accountData, index) => {
+                const dates = accountData.history.map(item => item.time.toLocaleDateString());
+                const balances = accountData.history.map(item => item.balance);
+
+                return `
+                const ctx${index} = document.getElementById('chart${index}');
+                if (ctx${index}) {
+                    new Chart(ctx${index}, {
+                        type: 'line',
+                        data: {
+                            labels: ${JSON.stringify(dates)},
+                            datasets: [{
+                                label: '积分余额',
+                                data: ${JSON.stringify(balances)},
+                                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 2,
+                                pointRadius: 3,
+                                pointBackgroundColor: 'rgba(54, 162, 235, 1)',
+                                tension: 0.1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                title: {
+                                    display: true,
+                                    text: '积分余额变化趋势',
+                                    font: {
+                                        size: 16
+                                    }
+                                },
+                                tooltip: {
+                                    callbacks: {
+                                        label: function(context) {
+                                            return '积分: ' + context.parsed.y.toFixed(2);
+                                        }
+                                    }
+                                }
+                            },
+                            scales: {
+                                y: {
+                                    beginAtZero: false,
+                                    title: {
+                                        display: true,
+                                        text: '积分'
+                                    }
+                                },
+                                x: {
+                                    title: {
+                                        display: true,
+                                        text: '日期'
+                                    },
+                                    ticks: {
+                                        maxRotation: 45,
+                                        minRotation: 45
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+                `;
+            }).join('')}
+
+            // 默认展开第一个账号，折叠其他账号
+            const accounts = document.querySelectorAll('.account-info');
+            accounts.forEach((account, idx) => {
+                if (idx > 0) {
+                    toggleAccount(idx);
+                }
+            });
+        });
+
+        // 切换账号展开/折叠状态
+        function toggleAccount(index) {
+            const content = document.getElementById('account-content-' + index);
+            content.classList.toggle('collapsed');
+
+            const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
+            const toggleIcon = accountInfo.querySelector('.toggle-icon');
+
+            if (content.classList.contains('collapsed')) {
+                toggleIcon.textContent = '►';
+            } else {
+                toggleIcon.textContent = '▼';
+            }
+        }
+
+        // 全部展开按钮
+        document.getElementById('expandAll').addEventListener('click', function() {
+            const contents = document.querySelectorAll('.account-content');
+            contents.forEach((content, index) => {
+                content.classList.remove('collapsed');
+                const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
+                const toggleIcon = accountInfo.querySelector('.toggle-icon');
+                toggleIcon.textContent = '▼';
+            });
+        });
+
+        // 全部折叠按钮
+        document.getElementById('collapseAll').addEventListener('click', function() {
+            const contents = document.querySelectorAll('.account-content');
+            contents.forEach((content, index) => {
+                content.classList.add('collapsed');
+                const accountInfo = document.querySelector('[data-account-id="' + index + '"]');
+                const toggleIcon = accountInfo.querySelector('.toggle-icon');
+                toggleIcon.textContent = '►';
+            });
+        });
+    </script>
 </body>
 </html>
     `;
