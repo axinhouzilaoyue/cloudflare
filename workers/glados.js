@@ -20,6 +20,7 @@ let chatId = ''; // Telegram Chat ID
 let checkinResults = [];
 let accountStatus = [];
 let pointsHistory = [];
+let workerUrl = '';
 
 export default {
     // HTTP 请求处理函数
@@ -95,6 +96,7 @@ async function initializeVariables(env) {
     // 设置 Telegram 信息
     botToken = env.TGTOKEN || botToken;
     chatId = env.TGID || chatId;
+    workerUrl = env.WORKER_URL || workerUrl;
 
     // 尝试从环境变量加载账号
     try {
@@ -244,10 +246,10 @@ async function sendTelegramMessage(request) {
     message += `<code>✅ 共完成 ${accounts.length} 个账号的签到任务</code>`;
 
     // 添加图表链接，仅当request参数存在时
-    if (request) {
-        const chartUrl = getWorkerUrl(request) + "/checkinChart";
-        message += `\n\n<b>📊 <a href="${chartUrl}">点击查看积分历史图表</a></b>`;
-    }
+    // 获取 Worker URL
+    const baseUrl = request ? getWorkerUrl(request) : workerUrl;
+    const chartUrl = baseUrl + "/checkinChart";
+    message += `\n\n<b>📊 <a href="${chartUrl}">点击查看积分历史图表</a></b>`;
 
     const url = `https://api.telegram.org/bot${botToken}/sendMessage?chat_id=${chatId}&parse_mode=HTML&text=${encodeURIComponent(message)}`;
     return fetch(url, {
