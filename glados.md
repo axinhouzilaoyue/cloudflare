@@ -3,7 +3,10 @@
 一个基于 Cloudflare Worker 的 GLaDOS 自动签到工具，支持多账号管理和 Telegram 通知功能。
 
 ## 📝 签到结果示例
-<img width="368" alt="image" src="https://github.com/user-attachments/assets/57ef78b1-1f41-4e87-b307-e68cdd3e304a" />
+<img width="434" alt="image" src="https://github.com/user-attachments/assets/9c5715b2-d0cc-42d2-8380-fe7215bf6b49" />
+
+## 📊 签到历史统计
+<img width="1764" alt="image" src="https://github.com/user-attachments/assets/eeb114db-4f89-4ec6-bd96-1ca4b97dd6ad" />
 
 ## ✨ 功能特点
 - 🔄 自动执行 GLaDOS 每日签到
@@ -73,6 +76,7 @@ Worker 提供以下 API 端点：
 - `/checkin` - 执行签到并返回账号状态
 - `/status` - 仅查询账号状态
 - `/tg` - 执行签到并发送结果到 Telegram
+- `/checkinChart` - 查看积分历史图表
 
 ## 📱 Telegram 通知设置
 
