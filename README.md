@@ -30,12 +30,12 @@
   </tr>
   <tr>
     <td align="center">
-      <p>自动完成 GLaDOS 平台的每日签到任务</p>
+      <p>自动完成 GLaDOS 的每日签到任务</p>
       <p>💡 多账户 | 🔔 tg通知 | 📊 签到统计</p>
     </td>
     <td align="center">
-      <p>自动完成 SSPanel 面板的每日签到任务</p>
-      <p>💡 批量管理 | 🔔 异常提醒 | 📈 流量监控</p>
+      <p>自动完成 SSPanel 面板每日签到任务</p>
+      <p>💡 多账户 | 🔔 tg通知</p>
     </td>
   </tr>
   <tr>
