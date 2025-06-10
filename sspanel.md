@@ -10,6 +10,14 @@
 - 定时任务和手动触发
 - 详细的签到结果统计
 
+## 部署
+
+1. 在 [Cloudflare Workers](https://workers.cloudflare.com/) 创建新的 Worker
+2. 复制[sspanel.js](https://raw.githubusercontent.com/axinhouzilaoyue/cloudflare/refs/heads/main/workers/sspanel.js)代码到编辑器：
+3. 修改 `AIRPORTS` 配置
+4. 设置环境变量（可选）
+5. 部署并测试
+
 ## 配置
 
 ### 1. 机场账号配置
@@ -44,14 +52,6 @@ const AIRPORTS = [
 | `/checkin` | POST | 执行签到（无通知） |
 | `/tg` | POST | 执行签到并发送 Telegram 通知 |
 | `/status` | GET | 查看配置状态 |
-
-## 部署
-
-1. 在 [Cloudflare Workers](https://workers.cloudflare.com/) 创建新的 Worker
-2. 复制[sspanel.js](https://raw.githubusercontent.com/axinhouzilaoyue/cloudflare/refs/heads/main/workers/sspanel.js)代码到编辑器：
-3. 修改 `AIRPORTS` 配置
-4. 设置环境变量（可选）
-5. 部署并测试
 
 ## 定时任务
 
