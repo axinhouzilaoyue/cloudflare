@@ -48,7 +48,7 @@ const AIRPORTS = [
 ## 部署
 
 1. 在 [Cloudflare Workers](https://workers.cloudflare.com/) 创建新的 Worker
-2. 复制代码到编辑器
+2. 复制[sspanel.js](https://raw.githubusercontent.com/axinhouzilaoyue/cloudflare/refs/heads/main/workers/sspanel.js)代码到编辑器：
 3. 修改 `AIRPORTS` 配置
 4. 设置环境变量（可选）
 5. 部署并测试
