@@ -7,8 +7,7 @@
 - 支持多个机场账号批量签到
 - 自动处理登录和 CSRF Token
 - 支持 Telegram Bot 消息通知
-- 定时任务和手动触发
-- 详细的签到结果统计
+- **定时任务自动签到**（也可手动触发）
 
 ## 部署
 
@@ -53,7 +52,7 @@ const AIRPORTS = [
 | `/tg` | POST | 执行签到并发送 Telegram 通知 |
 | `/status` | GET | 查看配置状态 |
 
-## 定时任务
+## ❤️自动签到-定时任务
 
 在 Workers 控制台的"触发器"页面添加 Cron 触发器：
 
@@ -61,21 +60,16 @@ const AIRPORTS = [
 0 9 * * *    # 每天上午 9 点执行
 ```
 
-## 使用示例
-
-### 手动签到
-```bash
-curl -X POST https://your-worker.workers.dev/checkin
-```
+## 手动使用示例
 
 ### 带通知签到
 ```bash
-curl -X POST https://your-worker.workers.dev/tg
+网页访问 https://your-worker.workers.dev/tg
 ```
 
 ### 查看状态
 ```bash
-curl https://your-worker.workers.dev/status
+网页访问 https://your-worker.workers.dev/status
 ```
 
 ## 响应格式
