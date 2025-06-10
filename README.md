@@ -25,7 +25,7 @@
       <h3>🛡️ GLaDOS 签到</h3>
     </td>
     <td width="50%" align="center" valign="top">
-      <h3>🌐 SSPanel 签到</h3>
+      <h3>🌐 SSPanel 通用签到</h3>
     </td>
   </tr>
   <tr>
