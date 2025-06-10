@@ -31,7 +31,7 @@
   <tr>
     <td align="center">
       <p>自动完成 GLaDOS 平台的每日签到任务</p>
-      <p>💡 支持多账户 | 🔔 邮件通知 | 📊 签到统计</p>
+      <p>💡 多账户 | 🔔 tg通知 | 📊 签到统计</p>
     </td>
     <td align="center">
       <p>自动完成 SSPanel 面板的每日签到任务</p>
