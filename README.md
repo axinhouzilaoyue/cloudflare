@@ -21,24 +21,30 @@
 
 <table>
   <tr>
-    <td width="50%" align="center">
+    <td width="50%" align="center" valign="top">
       <h3>🛡️ GLaDOS 签到</h3>
-      <img src="https://img.shields.io/badge/状态-✅_稳定运行-success?style=flat-square" alt="Status">
-      <br><br>
+    </td>
+    <td width="50%" align="center" valign="top">
+      <h3>🌐 SSPanel 签到</h3>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
       <p>自动完成 GLaDOS 平台的每日签到任务</p>
       <p>💡 支持多账户 | 🔔 邮件通知 | 📊 签到统计</p>
-      <br>
+    </td>
+    <td align="center">
+      <p>自动完成 SSPanel 面板的每日签到任务</p>
+      <p>💡 批量管理 | 🔔 异常提醒 | 📈 流量监控</p>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">
       <a href="./glados.md">
         <img src="https://img.shields.io/badge/📖_查看详情-4A90E2?style=for-the-badge&logo=readthedocs&logoColor=white" alt="GLaDOS详情">
       </a>
     </td>
-    <td width="50%" align="center">
-      <h3>🌐 SSPanel 签到</h3>
-      <img src="https://img.shields.io/badge/状态-✅_稳定运行-success?style=flat-square" alt="Status">
-      <br><br>
-      <p>自动完成 SSPanel 面板的每日签到任务</p>
-      <p>💡 批量管理 | 🔔 异常提醒 | 📈 流量监控</p>
-      <br>
+    <td align="center">
       <a href="./sspanel.md">
         <img src="https://img.shields.io/badge/📖_查看详情-E74C3C?style=for-the-badge&logo=readthedocs&logoColor=white" alt="SSPanel详情">
       </a>
