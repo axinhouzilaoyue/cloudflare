@@ -54,21 +54,6 @@
 
 ---
 
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request 来帮助改进项目！
-
-<div align="center">
-  <a href="https://github.com/yourusername/yourrepo/issues">
-    <img src="https://img.shields.io/badge/💡_提交建议-brightgreen?style=for-the-badge" alt="Issues">
-  </a>
-  <a href="https://github.com/yourusername/yourrepo/pulls">
-    <img src="https://img.shields.io/badge/🔧_贡献代码-blue?style=for-the-badge" alt="Pull Requests">
-  </a>
-</div>
-
----
-
 ## 📄 许可证
 
 本项目基于 [MIT License](LICENSE) 开源协议
