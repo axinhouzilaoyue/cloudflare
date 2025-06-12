@@ -1,22 +1,5 @@
 # 🚀 CF worker 工具集合
 
-<div align="center">
-  <p>
-    <a href="https://github.com/yourusername/yourrepo">
-      <img src="https://img.shields.io/github/stars/yourusername/yourrepo?style=social" alt="GitHub stars">
-    </a>
-    <a href="https://github.com/yourusername/yourrepo/fork">
-      <img src="https://img.shields.io/github/forks/yourusername/yourrepo?style=social" alt="GitHub forks">
-    </a>
-  </p>
-  <p>
-    <img src="https://img.shields.io/badge/License-MIT-green" alt="License">
-    <img src="https://img.shields.io/badge/Platform-Multi--Platform-lightgrey" alt="Platform">
-  </p>
-</div>
-
----
-
 ## 📋 功能模块
 
 <table>
@@ -59,5 +42,5 @@
 本项目基于 [MIT License](LICENSE) 开源协议
 
 <div align="center">
-  <sub>Built with ❤️ by <a href="https://github.com/yourusername">Your Name</a></sub>
+  <sub>Built with ❤️ by <a href="https://github.com/axinhouzilaoyue">Axin</a></sub>
 </div>
