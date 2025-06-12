@@ -1,6 +1,8 @@
 # SSPanel 机场自动签到脚本
 
 基于 Cloudflare Workers 的 SSPanel 机场多账号自动签到工具，支持 Telegram 通知。
+<img width="334" alt="image" src="https://github.com/user-attachments/assets/28853361-c977-4709-a6d9-c76271ee36e7" />
+
 
 ## 功能特性
 
